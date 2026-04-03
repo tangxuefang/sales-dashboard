@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>销售数据大屏</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --bg-primary:    #040d1f;
+      --bg-panel:      #0a1f3f;
+      --bg-card:       rgba(0,40,100,.8);
+      --accent:        #00c8ff;
+      --accent-2:      #0080ff;
+      --accent-glow:   rgba(0,200,255,.3);
+      --border:        rgba(0,168,255,.25);
+      --text-primary:  #c8daf5;
+      --text-label:    #5a8fc0;
+      --text-muted:    #3a7fac;
+      --gradient-hero: linear-gradient(90deg, rgba(0,60,120,.9) 0%, rgba(0,20,60,.95) 50%, rgba(0,60,120,.9) 100%);
+      --shadow-glow:   0 0 20px rgba(0,168,255,.2);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg-primary); color: var(--text-primary); font-family: "PingFang SC", "Microsoft YaHei", sans-serif; min-height: 100vh; }
+    body::before { content: ""; position: fixed; inset: 0; background-image: linear-gradient(rgba(0,168,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,168,255,.04) 1px, transparent 1px); background-size: 50px 50px; pointer-events: none; z-index: 0; }
+    header { position: relative; z-index: 10; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 64px; background: var(--gradient-hero); border-bottom: 1px solid var(--border); box-shadow: 0 4px 24px rgba(0,100,255,.2); }
+    header h1 { font-size: 22px; font-weight: 700; letter-spacing: 4px; background: linear-gradient(90deg, var(--accent), #fff, var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    header .update-time { font-size: 13px; color: var(--text-muted); }
+    main { position: relative; z-index: 1; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+    .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .kpi-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; display: flex; flex-direction: column; gap: 6px; position: relative; overflow: hidden; transition: border-color .3s, box-shadow .3s; }
+    .kpi-card:hover { border-color: var(--accent); box-shadow: var(--shadow-glow); }
+    .kpi-card::after { content: ""; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); }
+    .kpi-card .label { font-size: 12px; color: var(--text-label); letter-spacing: 1px; }
+    .kpi-card .value { font-size: 28px; font-weight: 700; color: #fff; }
+    .kpi-card .sub { font-size: 12px; color: var(--text-muted); }
+    .kpi-card .icon { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); font-size: 36px; opacity: .12; }
+    .chart-row { display: grid; gap: 16px; }
+    .chart-row.two { grid-template-columns: 1fr 1fr; }
+    .chart-row.three { grid-template-columns: 1fr 1fr 1fr; }
+    .panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; }
+    .panel-title { font-size: 13px; font-weight: 600; letter-spacing: 2px; color: var(--accent); margin-bottom: 10px; padding-left: 10px; border-left: 3px solid var(--accent); }
+    .chart-box { flex: 1; min-height: 0; min-height: 260px; }
+    .table-wrap { overflow-y: auto; flex: 1; max-height: 260px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    thead tr { background: rgba(0,80,160,.5); }
+    thead th { padding: 8px 10px; text-align: left; color: var(--accent); font-weight: 600; white-space: nowrap; }
+    tbody tr { border-bottom: 1px solid rgba(0,100,200,.15); transition: background .2s; }
+    tbody tr:hover { background: rgba(0,100,200,.2); }
+    tbody td { padding: 7px 10px; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .tag.high   { background: rgba(0,200,100,.15); color: #0f6; border: 1px solid rgba(0,200,100,.3); }
+    .tag.mid    { background: rgba(0,160,255,.15); color: var(--accent); border: 1px solid rgba(0,160,255,.3); }
+    .tag.low    { background: rgba(200,100,0,.15); color: #fa0; border: 1px solid rgba(200,100,0,.3); }
+    footer { text-align: center; padding: 10px; font-size: 11px; color: var(--text-muted); letter-spacing: 1px; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 3px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>销售数据大屏</h1>
+  <div class="update-time" id="clock"></div>
+</header>
+<main>
+  <div class="kpi-row" id="kpi-row"></div>
+  <div class="chart-row two">
+    <div class="panel"><div class="panel-title">销售趋势（按日期）</div><div class="chart-box" id="chart-1"></div></div>
+    <div class="panel"><div class="panel-title">区域销售对比</div><div class="chart-box" id="chart-2"></div></div>
+  </div>
+  <div class="chart-row three">
+    <div class="panel"><div class="panel-title">产品销售占比</div><div class="chart-box" id="chart-3"></div></div>
+    <div class="panel"><div class="panel-title">产品销售排名</div><div class="chart-box" id="chart-4"></div></div>
+    <div class="panel"><div class="panel-title">利润率分布</div><div class="chart-box" id="chart-5"></div></div>
+  </div>
+  <div class="panel" id="table-panel">
+    <div class="panel-title">明细数据</div>
+    <div class="table-wrap">
+      <table><thead id="table-head"></thead><tbody id="table-body"></tbody></table>
+    </div>
+  </div>
+</main>
+<footer>Generated by Dashboard Generator Skill</footer>
+
+<script>
+const DATA = [
+  {"id":1,"product_name":"智能手表","region":"华东","sales_amount":19485,"profit_rate":15.5,"report_date":"2026-03-01"},
+  {"id":2,"product_name":"无线耳机","region":"华南","sales_amount":17955,"profit_rate":12,"report_date":"2026-02-10"},
+  {"id":3,"product_name":"智能手表 Pro","region":"华东","sales_amount":28500,"profit_rate":22.5,"report_date":"2026-01-01"},
+  {"id":4,"product_name":"无线降噪耳机","region":"华南","sales_amount":19800,"profit_rate":18,"report_date":"2026-02-05"},
+  {"id":5,"product_name":"机械键盘 Z系列","region":"华北","sales_amount":12600,"profit_rate":15.2,"report_date":"2025-10-10"},
+  {"id":6,"product_name":"4K 扩展坞","region":"华中","sales_amount":8400,"profit_rate":12.5,"report_date":"2025-10-12"},
+  {"id":7,"product_name":"便携显示屏 15寸","region":"西南","sales_amount":15600,"profit_rate":14,"report_date":"2025-10-15"},
+  {"id":8,"product_name":"电竞鼠标 G3","region":"西北","sales_amount":9200,"profit_rate":11.5,"report_date":"2025-10-18"},
+  {"id":9,"product_name":"智能手表 Pro","region":"华南","sales_amount":31200,"profit_rate":24.1,"report_date":"2025-11-01"},
+  {"id":10,"product_name":"无线降噪耳机","region":"华东","sales_amount":22400,"profit_rate":19.5,"report_date":"2025-11-05"},
+  {"id":11,"product_name":"机械键盘 Z系列","region":"华南","sales_amount":11000,"profit_rate":14.8,"report_date":"2025-11-08"},
+  {"id":12,"product_name":"4K 扩展坞","region":"西北","sales_amount":7600,"profit_rate":10.2,"report_date":"2025-11-12"},
+  {"id":13,"product_name":"便携显示屏 15寸","region":"华北","sales_amount":16800,"profit_rate":16,"report_date":"2025-11-15"},
+  {"id":14,"product_name":"垂直办公鼠标","region":"华东","sales_amount":5400,"profit_rate":25,"report_date":"2025-11-20"}
+];
+
+function updateClock(){ document.getElementById('clock').textContent = new Date().toLocaleString('zh-CN'); }
+updateClock(); setInterval(updateClock, 1000);
+
+// KPI
+const totalSales = DATA.reduce((s,r)=>s+r.sales_amount,0);
+const avgProfit = DATA.reduce((s,r)=>s+r.profit_rate,0) / DATA.length;
+const maxSales = Math.max(...DATA.map(r=>r.sales_amount));
+const topProduct = DATA.find(r=>r.sales_amount===maxSales).product_name;
+const maxProfit = Math.max(...DATA.map(r=>r.profit_rate));
+const topProfitProduct = DATA.find(r=>r.profit_rate===maxProfit).product_name;
+
+document.getElementById('kpi-row').innerHTML = `
+  <div class="kpi-card"><div class="label">总销售额</div><div class="value">¥${(totalSales/10000).toFixed(1)}万</div><div class="sub">14条记录</div><div class="icon">💰</div></div>
+  <div class="kpi-card"><div class="label">平均利润率</div><div class="value">${avgProfit.toFixed(1)}%</div><div class="sub">整体盈利水平</div><div class="icon">📊</div></div>
+  <div class="kpi-card"><div class="label">热销产品</div><div class="value" style="font-size:18px">${topProduct}</div><div class="sub">销售额最高</div><div class="icon">🏆</div></div>
+  <div class="kpi-card"><div class="label">高利润率产品</div><div class="value" style="font-size:18px">${topProfitProduct}</div><div class="sub">利润率${maxProfit}%</div><div class="icon">⭐</div></div>
+`;
+
+// 图表1: 销售趋势（按日期）
+const sortedByDate = [...DATA].sort((a,b)=>new Date(a.report_date)-new Date(b.report_date));
+const dateGroups = {};
+sortedByDate.forEach(r=>{ dateGroups[r.report_date] = (dateGroups[r.report_date]||0) + r.sales_amount; });
+const chart1 = echarts.init(document.getElementById('chart-1'));
+chart1.setOption({
+  tooltip: { trigger: 'axis' },
+  grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+  xAxis: { type: 'category', data: Object.keys(dateGroups), axisLabel: { color: '#5a8fc0' }, axisLine: { lineStyle: { color: '#0a1f3f' }} },
+  yAxis: { type: 'value', axisLabel: { color: '#5a8fc0' }, splitLine: { lineStyle: { color: 'rgba(0,168,255,.1)' }} },
+  series: [{ type: 'line', data: Object.values(dateGroups), smooth: true, areaStyle: { opacity: 0.3 }, itemStyle: { color: '#00c8ff' }, lineStyle: { color: '#00c8ff' }}]
+});
+
+// 图表2: 区域销售对比
+const regionGroups = {};
+DATA.forEach(r=>{ regionGroups[r.region] = (regionGroups[r.region]||0) + r.sales_amount; });
+const regionSorted = Object.entries(regionGroups).sort((a,b)=>b[1]-a[1]);
+const chart2 = echarts.init(document.getElementById('chart-2'));
+chart2.setOption({
+  tooltip: { trigger: 'axis' },
+  grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+  xAxis: { type: 'value', axisLabel: { color: '#5a8fc0' }, splitLine: { lineStyle: { color: 'rgba(0,168,255,.1)' }} },
+  yAxis: { type: 'category', data: regionSorted.map(r=>r[0]), axisLabel: { color: '#5a8fc0' } },
+  series: [{ type: 'bar', data: regionSorted.map(r=>r[1]), barMaxWidth: 30, itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{offset:0,color:'#0080ff'},{offset:1,color:'#00c8ff'}] }, borderRadius: [0,4,4,0] }}]
+});
+
+// 图表3: 产品销售占比
+const productGroups = {};
+DATA.forEach(r=>{ productGroups[r.product_name] = (productGroups[r.product_name]||0) + r.sales_amount; });
+const chart3 = echarts.init(document.getElementById('chart-3'));
+chart3.setOption({
+  tooltip: { trigger: 'item', formatter: '{b}: ¥{c} ({d}%)' },
+  series: [{ type: 'pie', radius: ['35%','70%'], center: ['50%','50%'], data: Object.entries(productGroups).map(([n,v])=>({name:n,value:v})), color: ['#00c8ff','#0080ff','#00e0a0','#ff9020','#ff4060','#a040ff','#ff6090','#80ff80'], label: { show: false }, itemStyle: { borderRadius: 4, borderColor: '#040d1f', borderWidth: 2 }}]
+});
+
+// 图表4: 产品销售排名
+const productSorted = Object.entries(productGroups).sort((a,b)=>b[1]-a[1]);
+const chart4 = echarts.init(document.getElementById('chart-4'));
+chart4.setOption({
+  tooltip: { trigger: 'axis' },
+  grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+  xAxis: { type: 'value', axisLabel: { color: '#5a8fc0' }, splitLine: { lineStyle: { color: 'rgba(0,168,255,.1)' }} },
+  yAxis: { type: 'category', data: productSorted.map(r=>r[0]), axisLabel: { color: '#5a8fc0', fontSize: 10 } },
+  series: [{ type: 'bar', data: productSorted.map(r=>r[1]), barMaxWidth: 25, itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{offset:0,color:'#00e0a0'},{offset:1,color:'#00c8ff'}] }, borderRadius: [0,4,4,0] }}]
+});
+
+// 图表5: 利润率分布
+const profitRanges = { '10-15%':0, '15-20%':0, '20-25%':0 };
+DATA.forEach(r=>{ if(r.profit_rate<=15) profitRanges['10-15%']++; else if(r.profit_rate<=20) profitRanges['15-20%']++; else profitRanges['20-25%']++; });
+const chart5 = echarts.init(document.getElementById('chart-5'));
+chart5.setOption({
+  tooltip: { trigger: 'item', formatter: '{b}: {c}条 ({d}%)' },
+  series: [{ type: 'pie', radius: ['0','65%'], center: ['50%','50%'], data: Object.entries(profitRanges).map(([n,v])=>({name:n,value:v})), color: ['#ff9020','#00c8ff','#00e0a0'], label: { formatter: '{b}: {c}条', color: '#5a8fc0', fontSize: 11 }, itemStyle: { borderRadius: 4, borderColor: '#040d1f', borderWidth: 2 }}]
+});
+
+// 表格
+const columns = [
+  { field: 'product_name', label: '产品名称' },
+  { field: 'region', label: '区域' },
+  { field: 'sales_amount', label: '销售额' },
+  { field: 'profit_rate', label: '利润率' },
+  { field: 'report_date', label: '日期' }
+];
+document.getElementById('table-head').innerHTML = `<tr>${columns.map(c=>`<th>${c.label}</th>`).join('')}</tr>`;
+document.getElementById('table-body').innerHTML = DATA.map(row =>
+  `<tr>${columns.map(c=>`<td>${c.field==='sales_amount'?'¥'+row[c.field].toLocaleString():row[c.field]}</td>`).join('')}</tr>`
+).join('');
+
+// 窗口自适应
+window.addEventListener('resize', () => { [chart1,chart2,chart3,chart4,chart5].forEach(c=>c.resize()); });
+</script>
+</body>
+</html>
